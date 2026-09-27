@@ -1,0 +1,72 @@
+id: tool-agent-basic
+title: Агент с инструментами — цикл вызова инструментов
+topic: Создание агента с инструментами
+difficulty: basic
+language: ru
+status: draft
+estimated_minutes: 90
+learning_objectives:
+- Понять цикл агента «модель → вызов инструмента → результат → модель»
+- Описать инструмент и передать его результат обратно модели
+- Ограничить число шагов агента и обработать ошибки инструментов
+requirements:
+- id: R1
+  text: Инструмент calculator корректно вычисляет выражения с + - * / и скобками
+  check: auto
+  test_ids: [test_calculator]
+- id: R2
+  text: Если модель сразу отвечает текстом, агент возвращает этот ответ
+  check: auto
+  test_ids: [test_direct_answer]
+- id: R3
+  text: Агент выполняет вызов инструмента и передаёт результат модели в следующем шаге
+  check: auto
+  test_ids: [test_tool_call_roundtrip]
+- id: R4
+  text: Агент останавливается после max_steps шагов и сообщает об этом
+  check: auto
+  test_ids: [test_max_steps]
+- id: R5
+  text: Вызов неизвестного инструмента не роняет агента, модель получает сообщение об ошибке
+  check: auto
+  test_ids: [test_unknown_tool]
+- id: R6
+  text: В отчёте объяснено, как агент решает, когда остановиться
+  check: manual
+  test_ids: []
+tests:
+- id: test_calculator
+  requirement_ids: [R1]
+  file: test_agent.py
+- id: test_direct_answer
+  requirement_ids: [R2]
+  file: test_agent.py
+- id: test_tool_call_roundtrip
+  requirement_ids: [R3]
+  file: test_agent.py
+  points: 2.0
+- id: test_max_steps
+  requirement_ids: [R4]
+  file: test_agent.py
+- id: test_unknown_tool
+  requirement_ids: [R5]
+  file: test_agent.py
+rubric:
+- requirement_id: R1
+  points: 1
+  criteria: Все выражения вычислены верно; eval() без ограничений не используется
+- requirement_id: R2
+  points: 1
+  criteria: Ответ модели возвращается без изменений
+- requirement_id: R3
+  points: 2
+  criteria: Результат инструмента добавлен в историю как сообщение role=tool
+- requirement_id: R4
+  points: 1
+  criteria: Ровно max_steps обращений к модели, затем понятное сообщение
+- requirement_id: R5
+  points: 1
+  criteria: Ошибка возвращается модели как результат инструмента
+- requirement_id: R6
+  points: 2
+  criteria: Объяснение опирается на код, а не пересказывает задание

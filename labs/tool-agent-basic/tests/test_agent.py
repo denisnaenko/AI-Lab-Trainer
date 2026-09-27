@@ -1,0 +1,43 @@
+import pytest
+
+from agent import calculator, run_agent
+
+
+@pytest.mark.parametrize("expr, expected", [
+    ("2+2", 4), ("2*(3+4)", 14), ("10/4", 2.5), ("7-10", -3), ("(1+2)*(3+4)/7", 3),
+])
+def test_calculator(expr, expected):
+    assert float(calculator(expr)) == pytest.approx(expected)
+
+
+def test_direct_answer(fake_llm):
+    llm = fake_llm([{"type": "text", "text": "Привет!"}])
+    assert run_agent(llm, "Привет") == "Привет!"
+
+
+def test_tool_call_roundtrip(fake_llm):
+    llm = fake_llm([
+        {"type": "tool_call", "name": "calculator", "arguments": {"expression": "6*7"}},
+        {"type": "text", "text": "42"},
+    ])
+    assert run_agent(llm, "Сколько будет 6*7?") == "42"
+    tool_msgs = [m for m in llm.calls[1] if m.get("role") == "tool"]
+    assert tool_msgs and tool_msgs[-1]["name"] == "calculator"
+    assert float(tool_msgs[-1]["content"]) == 42
+
+
+def test_max_steps(fake_llm):
+    llm = fake_llm([])  # always asks for a tool, never answers
+    result = run_agent(llm, "loop", max_steps=3)
+    assert len(llm.calls) == 3
+    assert result.startswith("Stopped")
+
+
+def test_unknown_tool(fake_llm):
+    llm = fake_llm([
+        {"type": "tool_call", "name": "weather", "arguments": {}},
+        {"type": "text", "text": "Не могу"},
+    ])
+    assert run_agent(llm, "Погода?") == "Не могу"
+    tool_msgs = [m for m in llm.calls[1] if m.get("role") == "tool"]
+    assert tool_msgs and "weather" in tool_msgs[-1]["content"]

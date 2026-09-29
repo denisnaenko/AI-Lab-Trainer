@@ -5,7 +5,11 @@ description = "AI agent that generates lab assignments on agentic AI development
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "anthropic>=0.70",
+    "langgraph>=1.0",
+    "langchain>=1.0",
+    "langchain-core>=1.0",
+    "langchain-anthropic>=1.0",
+    "langchain-openai>=1.0",
     "pydantic>=2.7",
     "pyyaml>=6.0",
     "typer>=0.12",

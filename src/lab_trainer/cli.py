@@ -18,15 +18,29 @@ LABS = Path("labs")
 
 
 @app.command()
-def generate(topic: str, difficulty: Difficulty = Difficulty.BASIC, notes: str = "") -> None:
+def generate(
+    topic: str,
+    difficulty: Difficulty = Difficulty.BASIC,
+    notes: str = "",
+    model: str = typer.Option(None, help="provider:model, e.g. openai:qwen3-coder"),
+    max_repairs: int = 3,
+) -> None:
     """Generate a draft lab from a topic and save it under labs/ for review."""
-    from lab_trainer.generation import GenerationPipeline, GenerationRequest
-    from lab_trainer.generation.llm import ClaudeClient
+    from lab_trainer.generation import GenerationRequest, generate_lab
+    from lab_trainer.generation.llm import make_chat_model
 
-    lab = GenerationPipeline(ClaudeClient()).run(
-        GenerationRequest(topic=topic, difficulty=difficulty, teacher_notes=notes)
+    result = generate_lab(
+        GenerationRequest(topic=topic, difficulty=difficulty, teacher_notes=notes),
+        make_chat_model(model),
+        max_repairs=max_repairs,
     )
-    typer.echo(f"Draft saved to {save_lab(lab, LABS)}. Review and edit it, then run approve.")
+    if result.lab is None:
+        typer.echo("\n".join(f"error: {e}" for e in result.errors))
+        raise typer.Exit(1)
+    typer.echo(f"Draft saved to {save_lab(result.lab, LABS)}.")
+    for err in result.errors:
+        typer.echo(f"needs fixing: {err}")
+    typer.echo("Review and edit it, then run validate and approve.")
 
 
 @app.command()

@@ -3,13 +3,8 @@
 import ast
 import operator
 
-TOOLS = [
-    {
-        "name": "calculator",
-        "description": "Вычисляет арифметическое выражение с + - * / и скобками",
-        "parameters": {"expression": "string"},
-    }
-]
+from langchain_core.messages import HumanMessage, ToolMessage
+from langchain_core.tools import tool
 
 _OPS = {
     ast.Add: operator.add, ast.Sub: operator.sub,
@@ -27,26 +22,30 @@ def _eval(node):
     raise ValueError(f"unsupported expression: {ast.dump(node)}")
 
 
+@tool
 def calculator(expression: str) -> float:
+    """Вычисляет арифметическое выражение с + - * / и скобками."""
     return _eval(ast.parse(expression, mode="eval").body)
 
 
-TOOL_FUNCTIONS = {"calculator": calculator}
+TOOLS = [calculator]
+TOOLS_BY_NAME = {t.name: t for t in TOOLS}
 
 
 def run_agent(llm, user_message: str, max_steps: int = 5) -> str:
-    messages = [{"role": "user", "content": user_message}]
+    model = llm.bind_tools(TOOLS)
+    messages = [HumanMessage(user_message)]
     for _ in range(max_steps):
-        response = llm.complete(messages, tools=TOOLS)
-        if response["type"] == "text":
-            return response["text"]
-        name = response["name"]
-        messages.append({"role": "assistant", "tool_call": response})
-        try:
-            result = str(TOOL_FUNCTIONS[name](**response.get("arguments", {})))
-        except KeyError:
-            result = f"Error: unknown tool {name}"
-        except Exception as exc:  # noqa: BLE001 - tool errors go back to the model
-            result = f"Error: {exc}"
-        messages.append({"role": "tool", "name": name, "content": result})
+        response = model.invoke(messages)
+        messages.append(response)
+        if not response.tool_calls:
+            return response.content
+        for call in response.tool_calls:
+            try:
+                result = str(TOOLS_BY_NAME[call["name"]].invoke(call["args"]))
+            except KeyError:
+                result = f"Error: unknown tool {call['name']}"
+            except Exception as exc:  # noqa: BLE001 - tool errors go back to the model
+                result = f"Error: {exc}"
+            messages.append(ToolMessage(result, name=call["name"], tool_call_id=call["id"]))
     return f"Stopped after {max_steps} steps"

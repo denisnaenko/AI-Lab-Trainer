@@ -23,6 +23,11 @@ def test_example_lab_is_valid(lab):
     assert lab.auto_check_coverage >= 0.8
 
 
+def test_example_lab_passes_full_validation(lab):
+    report = validate_lab(lab)
+    assert report.ok, (report.errors, report.output)
+
+
 def test_roundtrip_through_disk(lab, tmp_path):
     assert load_lab(save_lab(lab, tmp_path)) == lab
 
@@ -47,5 +52,7 @@ def test_gitverse_export_hides_solution(lab, tmp_path):
     lab = lab.model_copy(update={"status": Status.APPROVED})
     repo = Path(GitverseRepoExporter().export(lab, tmp_path).location)
     shipped = {p.relative_to(repo).as_posix() for p in repo.rglob("*") if p.is_file()}
-    assert shipped == {"README.md", "agent.py", "tests/conftest.py", "tests/test_agent.py"}
+    assert shipped == {
+        "README.md", "agent.py", "requirements.txt", "tests/conftest.py", "tests/test_agent.py"
+    }
     assert "ast.parse" not in (repo / "agent.py").read_text(encoding="utf-8")

@@ -1,5 +1,5 @@
 id: tool-agent-basic
-title: Агент с инструментами — цикл вызова инструментов
+title: Агент с инструментами на LangChain — цикл вызова инструментов
 topic: Создание агента с инструментами
 difficulty: basic
 language: ru
@@ -19,7 +19,7 @@ requirements:
   check: auto
   test_ids: [test_direct_answer]
 - id: R3
-  text: Агент выполняет вызов инструмента и передаёт результат модели в следующем шаге
+  text: Агент привязывает инструменты к модели, выполняет вызов и передаёт результат модели в следующем шаге
   check: auto
   test_ids: [test_tool_call_roundtrip]
 - id: R4
@@ -60,13 +60,13 @@ rubric:
   criteria: Ответ модели возвращается без изменений
 - requirement_id: R3
   points: 2
-  criteria: Результат инструмента добавлен в историю как сообщение role=tool
+  criteria: Инструменты привязаны через bind_tools; результат добавлен в историю как ToolMessage с tool_call_id вызова
 - requirement_id: R4
   points: 1
   criteria: Ровно max_steps обращений к модели, затем понятное сообщение
 - requirement_id: R5
   points: 1
-  criteria: Ошибка возвращается модели как результат инструмента
+  criteria: Ошибка возвращается модели как ToolMessage
 - requirement_id: R6
   points: 2
   criteria: Объяснение опирается на код, а не пересказывает задание

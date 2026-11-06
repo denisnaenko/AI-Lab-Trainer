@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% from "_macros.html" import diff, diff_pill, codemirror with context %}
+{% block title %}Аккаунт — AI Lab Trainer{% endblock %}
+{% block content %}
+<div class="page">
+  <div class="account-grid">
+    <nav class="side-nav">
+      <a href="#profile">👤 Профиль</a>
+      <a href="#llm">🔌 Интеграции LLM</a>
+      <a href="#security">🔒 Безопасность</a>
+    </nav>
+
+    <div>
+      <section class="card" id="profile">
+        <div class="profile-head">
+          <span class="avatar">{{ user.initials }}</span>
+          <div><h1>{{ user.name }}</h1><div class="muted">{{ user.email }} · с {{ user.created_at[:10] }}</div></div>
+        </div>
+        <form method="post" action="/account/profile" style="max-width:420px">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <label class="field"><span>Имя</span><input type="text" name="name" value="{{ user.name }}" required></label>
+          <button class="btn" type="submit">Сохранить</button>
+        </form>
+      </section>
+
+      <section id="llm" style="margin-top:24px">
+        <h2 style="font-size:18px">Интеграции LLM</h2>
+        <p class="muted" style="margin-top:-6px">Подключите модель, чтобы агент генерировал работы по любой теме. Ключи хранятся в зашифрованном виде и не показываются целиком. Модель по умолчанию используется в режиме «Автоматически».</p>
+
+        {% for pid, info in providers.items() %}
+          {% set c = creds.get(pid) %}
+          <div class="integration" id="llm-{{ pid }}">
+            <div class="integration-head">
+              <span class="provider-badge {{ pid }}">{{ {'anthropic': 'C', 'openai': 'O', 'local': '⌂'}[pid] }}</span>
+              <div class="grow">
+                <strong>{{ info.title }}</strong>
+                <div class="sub">
+                  {% if pid == 'local' %}Ollama, LM Studio, vLLM и другие серверы с OpenAI-совместимым API
+                  {% elif pid == 'anthropic' %}Модели Claude через LangChain (ChatAnthropic)
+                  {% else %}Модели OpenAI через LangChain (ChatOpenAI){% endif %}
+                </div>
+              </div>
+              {% if c %}
+                {% if c.is_default %}<span class="pill brand">по умолчанию</span>{% endif %}
+                {% if c.last_check_ok %}<span class="pill ok">подключено</span>
+                {% elif c.last_check_ok == false %}<span class="pill err">ошибка подключения</span>
+                {% else %}<span class="pill medium">не проверено</span>{% endif %}
+              {% else %}<span class="pill">не настроено</span>{% endif %}
+            </div>
+
+            <form method="post" action="/account/llm/{{ pid }}">
+              <input type="hidden" name="csrf" value="{{ csrf }}">
+              <div class="form-grid">
+                {% if pid == 'local' %}
+                <label class="field"><span>Адрес сервера (base URL)</span>
+                  <input type="url" name="base_url" value="{{ c.base_url if c else info.default_url }}" placeholder="{{ info.default_url }}" required></label>
+                {% endif %}
+                <label class="field"><span>Модель <span class="muted">— {{ info.model_hint }}</span></span>
+                  <input type="text" name="model" value="{{ c.model if c else info.default_model }}" required></label>
+                <label class="field"><span>API-ключ <span class="muted">— {{ info.key_hint }}</span></span>
+                  <input type="password" name="api_key" autocomplete="off"
+                         placeholder="{{ ('сохранён: ' ~ c.key_mask ~ ' — оставьте пустым, чтобы не менять') if c and c.has_key else ('необязательно' if not info.needs_key else 'вставьте ключ') }}"></label>
+              </div>
+              {% if pid != 'anthropic' %}
+              <label class="check-row" style="margin-bottom:14px"><input type="checkbox" name="json_mode" {% if (c and c.json_mode) or (not c and pid == 'openai') %}checked{% endif %}>
+                JSON-режим ответа (response_format) — отключите, если сервер его не поддерживает</label>
+              {% endif %}
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                <button class="btn {{ 'brand' if not c else '' }}" type="submit">{{ 'Подключить' if not c else 'Сохранить' }}</button>
+                {% if c %}
+                  <button class="btn" type="button" data-llm-test="/api/account/llm/{{ pid }}/test" data-target="#check-{{ pid }}">Проверить подключение</button>
+                {% endif %}
+                <span id="check-{{ pid }}" class="check-result {{ 'ok-text' if c and c.last_check_ok else 'err-text' }}">{% if c and c.last_check_message %}{{ '✓ ' if c.last_check_ok else '✗ ' }}{{ c.last_check_message }}{% endif %}</span>
+              </div>
+            </form>
+            {% if c %}
+            <div style="display:flex;gap:8px;margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
+              {% if not c.is_default %}
+              <form class="inline" method="post" action="/account/llm/{{ pid }}/default"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn sm ghost" type="submit">Сделать моделью по умолчанию</button></form>
+              {% endif %}
+              <form class="inline" method="post" action="/account/llm/{{ pid }}/delete" data-confirm="Удалить интеграцию {{ info.title }}? Ключ будет стёрт."><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn sm ghost danger" type="submit">Удалить</button></form>
+              <span class="small muted" style="margin-left:auto;align-self:center">обновлено {{ c.updated_at[:16].replace('T', ' ') }}</span>
+            </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+        <p class="small muted">Локальная модель должна быть доступна с сервера, где запущен AI Lab Trainer. Пример для Ollama: <code>ollama serve</code>, затем <code>ollama pull qwen2.5-coder:14b</code>, адрес <code>http://localhost:11434/v1</code>.</p>
+      </section>
+
+      <section class="card" id="security" style="margin-top:24px">
+        <h2>Смена пароля</h2>
+        <form method="post" action="/account/password" style="max-width:420px">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <label class="field"><span>Текущий пароль</span><input type="password" name="old_password" required autocomplete="current-password"></label>
+          <label class="field"><span>Новый пароль <span class="muted">— не короче 8 символов</span></span><input type="password" name="new_password" required minlength="8" autocomplete="new-password"></label>
+          <button class="btn" type="submit">Изменить пароль</button>
+        </form>
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -70,13 +70,16 @@ class LabStore:
             raise LabNotFound(lab_id)
         return LabRecord.model_validate_json(path.read_text(encoding="utf-8"))
 
-    def list(self) -> list[LabRecord]:
+    def list(self, owner_id: int | None = None, *, include_shared: bool = True) -> list[LabRecord]:
+        """Работы пользователя (и общие, без владельца). ``owner_id=None`` — все работы."""
         records = []
         for path in self.labs_dir.glob("*/lab.json"):
             try:
                 records.append(LabRecord.model_validate_json(path.read_text(encoding="utf-8")))
             except Exception:
                 continue
+        if owner_id is not None:
+            records = [r for r in records if r.owner_id == owner_id or (include_shared and r.owner_id is None)]
         return sorted(records, key=lambda r: r.updated_at, reverse=True)
 
     def versions(self, lab_id: str) -> list[int]:

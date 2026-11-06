@@ -1,75 +1,85 @@
 {% extends "base.html" %}
-{% block nav_labs %}active{% endblock %}
+{% from "_macros.html" import diff, diff_pill, codemirror with context %}
 {% block title %}Редактирование: {{ spec.title }}{% endblock %}
+{% block head %}{{ codemirror() }}{% endblock %}
 {% block content %}
-<p><a href="/labs/{{ record.id }}">← к работе</a></p>
-<h1>Редактирование перед публикацией</h1>
-<p class="lead">После сохранения создаётся новая версия, работа возвращается в черновики и заново проходит автоматическую проверку.</p>
-{% if error %}<div class="alert err">{{ error }}</div>{% endif %}
-
-<form method="post" action="/labs/{{ record.id }}/edit" data-busy>
-  <div class="card">
-    <label for="title">Название</label>
-    <input type="text" id="title" name="title" value="{{ spec.title }}">
-    <label for="summary">Краткое описание</label>
-    <input type="text" id="summary" name="summary" value="{{ spec.summary }}">
-    <label for="estimated_minutes">Ориентировочное время, мин</label>
-    <input type="number" id="estimated_minutes" name="estimated_minutes" value="{{ spec.estimated_minutes or '' }}" min="5" max="600" style="max-width:160px">
+<div class="page">
+  <a class="btn ghost sm" href="/labs/{{ record.id }}">← К работе</a>
+  <div style="display:flex;align-items:center;gap:10px;margin:12px 0 4px">
+    <h1 style="margin:0">Редактирование перед публикацией</h1>{{ diff_pill(spec.level) }}
   </div>
+  <p class="muted" style="margin-top:0">После сохранения создаётся версия v{{ record.version + 1 }}, работа возвращается в черновики и заново проходит проверку в песочнице.</p>
+  {% if error %}<div class="alert">{{ error }}</div>{% endif %}
 
-  <div class="card">
-    <label for="statement_md">Условие для студента (Markdown)</label>
-    <textarea class="code" id="statement_md" name="statement_md" style="min-height:420px; white-space:pre-wrap">{{ spec.statement_md }}</textarea>
-  </div>
+  <form method="post" action="/labs/{{ record.id }}/edit" data-busy>
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="card">
+      <div class="form-grid">
+        <label class="field"><span>Название</span><input type="text" name="title" value="{{ spec.title }}" required></label>
+        <label class="field"><span>Время выполнения, мин</span><input type="number" name="estimated_minutes" value="{{ spec.estimated_minutes or '' }}" min="5" max="600"></label>
+      </div>
+      <label class="field"><span>Краткое описание</span><input type="text" name="summary" value="{{ spec.summary }}"></label>
+    </div>
 
-  <div class="card">
-    <h3>Требования и баллы</h3>
-    <p class="small">Тесты связываются с требованием по имени: <code>test_r3_...</code> проверяет R3. Сумма баллов должна быть 100. Пустая строка внизу — для нового требования.</p>
-    <table class="req-table">
-      <thead><tr><th style="width:80px">№</th><th>Текст</th><th style="width:90px">Баллы</th><th style="width:70px">Авто</th></tr></thead>
-      <tbody>
-      {% for r in spec.requirements %}
-        <tr>
-          <td><input type="text" name="req_id_{{ loop.index0 }}" value="{{ r.id }}"></td>
-          <td><textarea name="req_text_{{ loop.index0 }}" style="min-height:60px">{{ r.text }}</textarea></td>
-          <td><input type="number" name="req_points_{{ loop.index0 }}" value="{{ r.points }}" min="0"></td>
-          <td style="text-align:center"><input type="checkbox" name="req_auto_{{ loop.index0 }}" {% if r.auto %}checked{% endif %}></td>
-        </tr>
-      {% endfor %}
-        <tr>
-          <td><input type="text" name="req_id_{{ spec.requirements|length }}" placeholder="R{{ spec.requirements|length + 1 }}"></td>
-          <td><textarea name="req_text_{{ spec.requirements|length }}" style="min-height:60px" placeholder="Новое требование"></textarea></td>
-          <td><input type="number" name="req_points_{{ spec.requirements|length }}" value="0" min="0"></td>
-          <td style="text-align:center"><input type="checkbox" name="req_auto_{{ spec.requirements|length }}" checked></td>
-        </tr>
-      </tbody>
-    </table>
-    <input type="hidden" name="req_count" value="{{ spec.requirements|length }}">
-  </div>
+    <div class="card">
+      <div class="panel-head" data-tabs="edit" style="margin:-20px -20px 16px;border-radius:8px 8px 0 0">
+        <button type="button" class="tab active" data-tab="statement">Условие</button>
+        <button type="button" class="tab" data-tab="starter">Шаблон</button>
+        <button type="button" class="tab" data-tab="reference">Эталон</button>
+        <button type="button" class="tab" data-tab="public">Публичные тесты</button>
+        <button type="button" class="tab" data-tab="hidden">Скрытые тесты</button>
+        <button type="button" class="tab" data-tab="requirements">Требования</button>
+        <button type="button" class="tab" data-tab="mutants">Мутанты</button>
+      </div>
+      <div class="pane active" data-pane-of="edit" data-pane="statement">
+        <div class="editor-frame tall"><textarea class="code" name="statement_md" data-cm="markdown">{{ spec.statement_md }}</textarea></div>
+      </div>
+      <div class="pane" data-pane-of="edit" data-pane="starter">
+        <div class="editor-frame tall"><textarea class="code" name="starter_code" data-cm="python">{{ spec.starter_code }}</textarea></div>
+      </div>
+      <div class="pane" data-pane-of="edit" data-pane="reference">
+        <div class="editor-frame tall"><textarea class="code" name="reference_solution" data-cm="python">{{ spec.reference_solution }}</textarea></div>
+      </div>
+      <div class="pane" data-pane-of="edit" data-pane="public">
+        <div class="editor-frame tall"><textarea class="code" name="tests_public" data-cm="python">{{ spec.tests_public }}</textarea></div>
+      </div>
+      <div class="pane" data-pane-of="edit" data-pane="hidden">
+        <div class="editor-frame tall"><textarea class="code" name="tests_hidden" data-cm="python">{{ spec.tests_hidden }}</textarea></div>
+      </div>
+      <div class="pane" data-pane-of="edit" data-pane="requirements">
+        <p class="small muted" style="margin-top:0">Тест <code>test_r3_…</code> проверяет требование R3. Сумма баллов — 100. Пустая строка внизу — для нового требования.</p>
+        <table class="plain">
+          <thead><tr><th style="width:80px">№</th><th>Текст</th><th style="width:90px">Баллы</th><th style="width:60px">Авто</th></tr></thead>
+          <tbody>
+          {% for r in spec.requirements %}
+            <tr>
+              <td><input type="text" name="req_id_{{ loop.index0 }}" value="{{ r.id }}"></td>
+              <td><textarea name="req_text_{{ loop.index0 }}" rows="2" style="min-height:56px">{{ r.text }}</textarea></td>
+              <td><input type="number" name="req_points_{{ loop.index0 }}" value="{{ r.points }}" min="0"></td>
+              <td style="text-align:center"><input type="checkbox" name="req_auto_{{ loop.index0 }}" {% if r.auto %}checked{% endif %}></td>
+            </tr>
+          {% endfor %}
+            <tr>
+              <td><input type="text" name="req_id_{{ spec.requirements|length }}" placeholder="R{{ spec.requirements|length + 1 }}"></td>
+              <td><textarea name="req_text_{{ spec.requirements|length }}" rows="2" style="min-height:56px" placeholder="Новое требование"></textarea></td>
+              <td><input type="number" name="req_points_{{ spec.requirements|length }}" value="0" min="0"></td>
+              <td style="text-align:center"><input type="checkbox" name="req_auto_{{ spec.requirements|length }}" checked></td>
+            </tr>
+          </tbody>
+        </table>
+        <input type="hidden" name="req_count" value="{{ spec.requirements|length }}">
+      </div>
+      <div class="pane" data-pane-of="edit" data-pane="mutants">
+        <p class="small muted" style="margin-top:0">Типичные ошибки студентов: <code>find</code> — фрагмент эталона, <code>replace</code> — испорченный вариант. Тесты обязаны ловить каждый мутант.</p>
+        <textarea class="code" name="mutants_json" style="min-height:360px">{{ mutants_json }}</textarea>
+      </div>
+    </div>
 
-  <div class="card">
-    <label for="starter_code">Шаблон решения — solution.py</label>
-    <textarea class="code" id="starter_code" name="starter_code">{{ spec.starter_code }}</textarea>
-    <label for="reference_solution">Эталонное решение</label>
-    <textarea class="code" id="reference_solution" name="reference_solution">{{ spec.reference_solution }}</textarea>
-  </div>
-
-  <div class="card">
-    <label for="tests_public">Публичные тесты</label>
-    <textarea class="code" id="tests_public" name="tests_public">{{ spec.tests_public }}</textarea>
-    <label for="tests_hidden">Скрытые тесты</label>
-    <textarea class="code" id="tests_hidden" name="tests_hidden">{{ spec.tests_hidden }}</textarea>
-  </div>
-
-  <div class="card">
-    <label for="mutants_json">Мутанты — типичные ошибки для проверки тестов <span class="hint">(JSON: id, description, find, replace)</span></label>
-    <textarea class="code" id="mutants_json" name="mutants_json" style="min-height:220px">{{ mutants_json }}</textarea>
-    <label for="note">Комментарий к версии</label>
-    <input type="text" id="note" name="note" placeholder="Что изменено">
-    <div class="actions" style="margin-top:16px">
-      <button class="btn primary" type="submit" data-busy-text="Сохранение и проверка…"><span class="spinner"></span><span>Сохранить и проверить</span></button>
+    <div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <input type="text" name="note" placeholder="Комментарий к версии — что изменено" style="flex:1;min-width:240px">
+      <button class="btn green" type="submit" data-busy-text="Сохранение и проверка…">Сохранить и проверить</button>
       <a class="btn" href="/labs/{{ record.id }}">Отмена</a>
     </div>
-  </div>
-</form>
+  </form>
+</div>
 {% endblock %}

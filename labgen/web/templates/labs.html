@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% from "_macros.html" import diff, diff_pill, codemirror with context %}
+{% block title %}Задачи — AI Lab Trainer{% endblock %}
+{% block content %}
+<div class="page">
+  <div class="grid-main">
+    <div>
+      <h1>Лабораторные работы</h1>
+      <div class="muted">Ваши работы и общий каталог. Нажмите на работу, чтобы открыть редактор и проверить решение.</div>
+
+      <div class="topic-tags" style="margin-top:16px">
+        {% for t in topics %}
+          {% set n = labs | selectattr('spec.topic_id', 'equalto', t.id) | list | length %}
+          <button class="tag" type="button" data-topic="{{ t.id }}">{{ t.title }} <span class="count">{{ n }}</span></button>
+        {% endfor %}
+        {% set other = labs | selectattr('spec.topic_id', 'none') | list | length %}
+        {% if other %}<button class="tag" type="button" data-topic="llm">Сгенерировано LLM <span class="count">{{ other }}</span></button>{% endif %}
+      </div>
+
+      <div class="toolbar">
+        <div class="search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input type="text" id="filter-search" placeholder="Поиск по названию">
+        </div>
+        <select id="filter-diff" aria-label="Сложность">
+          <option value="">Сложность</option>
+          {% for n, (name, cls) in difficulty.items() %}<option value="{{ n }}">{{ name }}</option>{% endfor %}
+        </select>
+        <select id="filter-status" aria-label="Статус">
+          <option value="">Статус</option>
+          <option value="approved">Утверждена</option>
+          <option value="draft">Черновик</option>
+          <option value="errors">Есть ошибки проверки</option>
+        </select>
+        <a class="btn brand" href="/labs/new" style="margin-left:auto">+ Новая работа</a>
+      </div>
+
+      {% if labs %}
+      <table class="problems" data-filterable>
+        <thead>
+          <tr><th style="width:44px">Статус</th><th>Название</th><th>Сложность</th><th class="num">Автопроверка</th><th class="num">Мутанты</th><th class="num">Тесты</th></tr>
+        </thead>
+        <tbody>
+        {% for r in labs %}
+          {% set v = r.validation %}
+          {% set st = 'approved' if r.status == 'approved' else ('errors' if v and not v.passed else 'draft') %}
+          <tr data-title="{{ (r.spec.title ~ ' ' ~ r.request_topic) | lower }}" data-level="{{ r.level }}" data-status="{{ st }}" data-topic="{{ r.spec.topic_id or 'llm' }}">
+            <td>
+              {% if st == 'approved' %}
+                <svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="#2cbb5d" stroke-width="2.4" aria-label="Утверждена"><path d="M20 6 9 17l-5-5"/></svg>
+              {% elif st == 'errors' %}
+                <svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="#ef4743" stroke-width="2.2" aria-label="Ошибки проверки"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg>
+              {% else %}
+                <svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="#ffc01e" stroke-width="2.2" aria-label="Черновик"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              {% endif %}
+            </td>
+            <td>
+              <a class="title" href="/labs/{{ r.id }}">{{ loop.index }}. {{ r.spec.title }}</a>
+              <div class="small muted">
+                {% if r.owner_id is none %}общая · {% endif %}{{ 'LLM: ' ~ r.llm_name if r.llm_name else 'каталог' }}{% if r.request_topic != r.spec.title %} · «{{ r.request_topic }}»{% endif %}
+              </div>
+            </td>
+            <td>{{ diff(r.level) }}</td>
+            <td class="num">{{ '%d%%' % (r.spec.auto_coverage() * 100) }}</td>
+            <td class="num">{% if v and v.mutation_score is not none %}{{ '%d%%' % (v.mutation_score * 100) }}{% else %}—{% endif %}</td>
+            <td class="num">{{ r.spec.tests_by_requirement().values() | map('length') | sum }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <div class="empty hidden" id="filter-empty">Ничего не найдено — измените фильтры.</div>
+      {% else %}
+      <div class="card empty">
+        <p>У вас пока нет ни одной работы.</p>
+        <a class="btn brand" href="/labs/new">Создать первую работу</a> <a class="btn" href="/catalog">Открыть каталог</a>
+      </div>
+      {% endif %}
+    </div>
+
+    <aside>
+      <div class="side-card">
+        <h2>Готовность к публикации</h2>
+        {% set pct = (stats.approved / stats.total) if stats.total else 0 %}
+        <div class="progress-wrap">
+          <div class="ring">
+            <svg width="104" height="104" viewBox="0 0 104 104">
+              <circle cx="52" cy="52" r="44" fill="none" stroke="var(--fill-2)" stroke-width="7"/>
+              <circle cx="52" cy="52" r="44" fill="none" stroke="var(--brand)" stroke-width="7" stroke-linecap="round"
+                      stroke-dasharray="{{ 276.46 * pct }} 276.46"/>
+            </svg>
+            <div class="center"><strong>{{ stats.approved }}</strong><span>из {{ stats.total }}</span></div>
+          </div>
+          <div class="levels-bars">
+            {% for n, (name, cls) in difficulty.items() %}
+              {% set s = stats.by_level[n] %}
+              <div class="level-bar">
+                <div class="row"><span class="diff {{ cls }}">{{ name }}</span><span>{{ s.approved }}/{{ s.total }}</span></div>
+                <div class="bar"><i style="width:{{ (100 * s.approved / s.total) if s.total else 0 }}%;background:var(--{{ cls }})"></i></div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="side-card">
+        <h2>Интеграции LLM</h2>
+        {% for pid, info in providers.items() %}
+          {% set c = creds.get(pid) %}
+          <div class="integration-row">
+            <span class="dot {{ 'on' if c and c.last_check_ok else ('err' if c and c.last_check_ok == false else ('warn' if c else '')) }}"></span>
+            <span class="name">{{ info.title }}</span>
+            {% if c %}<span class="muted small">{{ c.model }}</span>{% if c.is_default %} <span class="pill brand">осн.</span>{% endif %}
+            {% else %}<a class="small" href="/account#llm-{{ pid }}">подключить</a>{% endif %}
+          </div>
+        {% endfor %}
+        {% if not creds %}<p class="small muted" style="margin:10px 0 0">Без LLM доступен каталог из 15 проверенных работ.</p>{% endif %}
+      </div>
+
+      <div class="side-card">
+        <h2>Быстрый старт</h2>
+        <p class="small text-2" style="margin-top:0">Готовые работы каталога по агентной разработке:</p>
+        {% for t in topics %}
+          <div class="integration-row"><span class="name">{{ t.title }}</span>
+            <a class="small" href="/labs/new?topic_id={{ t.id }}&level=1">создать</a></div>
+        {% endfor %}
+      </div>
+    </aside>
+  </div>
+</div>
+{% endblock %}

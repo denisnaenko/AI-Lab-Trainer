@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% from "_macros.html" import diff, diff_pill, codemirror with context %}
+{% block content %}
+<div class="page">
+  <section class="hero">
+    <h1>Лабораторные по агентной разработке —<br><em>за минуту</em> из темы занятия</h1>
+    <p>Напишите тему, выберите сложность — агент на LangGraph подготовит условие, шаблон решения, автотесты и критерии, сам проверит их в песочнице и даст отредактировать перед публикацией в Moodle или Gitverse.</p>
+    <div style="display:flex;gap:10px;justify-content:center">
+      <a class="btn brand lg" href="/register">Начать бесплатно</a>
+      <a class="btn lg" href="/login">Войти</a>
+    </div>
+  </section>
+
+  <div class="features">
+    <div class="feature"><h2>Агент на LangGraph</h2><p>Граф «генерация → проверка → исправление → рецензия». Claude, OpenAI или ваша локальная модель — ключи хранятся в аккаунте в зашифрованном виде.</p></div>
+    <div class="feature"><h2>Автопроверка агентов</h2><p>Код студента работает с «LLM по сценарию»: тесты проверяют вызовы инструментов, сообщения модели и остановку агента — детерминированно и без затрат на API.</p></div>
+    <div class="feature"><h2>Экспорт в LMS</h2><p>Вопрос CodeRunner для Moodle, репозиторий с CI для Gitverse и комплект преподавателя со скрытыми тестами и рубрикой.</p></div>
+  </div>
+
+  <h2>Каталог проверенных работ</h2>
+  <table class="problems">
+    <thead><tr><th>Тема</th><th>Чему учит</th><th>Уровни</th></tr></thead>
+    <tbody>
+    {% for t in topics %}
+      <tr><td><strong>{{ t.title }}</strong></td><td class="text-2">{{ t.summary }}</td>
+        <td style="white-space:nowrap">{{ diff_pill(1) }} {{ diff_pill(2) }} {{ diff_pill(3) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

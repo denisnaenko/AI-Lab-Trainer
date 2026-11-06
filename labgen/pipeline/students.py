@@ -7,19 +7,19 @@
 
 from __future__ import annotations
 
-from ..llm.base import LLMError, LLMProvider
+from ..llm.factory import LabLLM, LLMError
 from ..models import LabSpec
 from ..sandbox import run_tests
 from . import prompts
 from .jsonutil import extract_python_code
 
 
-def simulate_students(provider: LLMProvider, spec: LabSpec, n: int = 3, temperature: float = 0.8) -> dict:
+def simulate_students(llm: LabLLM, spec: LabSpec, n: int = 3) -> dict:
     files = {"test_public.py": spec.tests_public, "test_hidden.py": spec.tests_hidden}
     results = []
     for index in range(n):
         try:
-            raw = provider.complete(prompts.student_messages(spec), temperature=temperature)
+            raw = llm.complete(prompts.student_messages(spec))
         except LLMError as exc:
             results.append({"student": index + 1, "error": str(exc), "pass_rate": 0.0, "solved": False})
             continue

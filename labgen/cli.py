@@ -12,6 +12,8 @@ from .config import load_settings
 from .grader import grade_directory, grade_solution, report_to_markdown, reports_to_csv
 from .levels import LEVELS
 from .models import LabRecord, LabSpec
+from .agent.graph import NODE_LABELS
+from .llm import LLMError
 from .pipeline.generator import TopicNotFound
 from .service import EXPORT_KINDS, ApprovalError, LabService
 from .storage import LabNotFound
@@ -49,9 +51,11 @@ def cmd_generate(args: argparse.Namespace) -> int:
     materials = Path(args.materials).read_text(encoding="utf-8") if args.materials else None
     try:
         record = service.create(
-            args.topic, args.level, mode=args.mode, materials=materials, topic_id=args.topic_id, simulate=args.simulate
+            args.topic, args.level, mode=args.mode, llm=service.default_llm, materials=materials,
+            topic_id=args.topic_id, simulate=args.simulate,
+            on_step=lambda node, log: print(f"  → {NODE_LABELS.get(node, node)}", flush=True),
         )
-    except (TopicNotFound, ValueError) as exc:
+    except (TopicNotFound, ValueError, LLMError) as exc:
         print(f"Ошибка: {exc}", file=sys.stderr)
         return 2
     _print_record(record)
@@ -120,10 +124,10 @@ def _load_spec(service: LabService, target: str) -> tuple[LabSpec, str | None]:
 def cmd_grade(args: argparse.Namespace) -> int:
     service = _service(args)
     spec, lab_id = _load_spec(service, args.lab)
-    provider = service.provider if args.llm_feedback else None
+    llm = service.default_llm if args.llm_feedback else None
     target = Path(args.solution)
     if target.is_dir():
-        reports = grade_directory(spec, target, provider=provider)
+        reports = grade_directory(spec, target, llm=llm)
         csv_text = reports_to_csv(reports)
         if args.csv:
             Path(args.csv).write_text(csv_text, encoding="utf-8-sig")
@@ -135,7 +139,7 @@ def cmd_grade(args: argparse.Namespace) -> int:
                 service.store.save_grade(lab_id, report)
         return 0
     code = target.read_text(encoding="utf-8", errors="replace")
-    report = grade_solution(spec, code, student=args.student or target.stem, provider=provider)
+    report = grade_solution(spec, code, student=args.student or target.stem, llm=llm)
     if lab_id:
         service.store.save_grade(lab_id, report)
     if args.json:
@@ -169,6 +173,13 @@ def cmd_build_catalog(args: argparse.Namespace) -> int:
                 f"мутанты {mutation} → {folder}"
             )
     return 1 if failures else 0
+
+
+def cmd_graph(args: argparse.Namespace) -> int:
+    from .agent.graph import LAB_AGENT
+
+    print(LAB_AGENT.get_graph().draw_mermaid())
+    return 0
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
@@ -229,6 +240,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--levels", type=int, nargs="+", default=[1, 2, 3])
     p.add_argument("--approve", action="store_true", help="сразу утвердить прошедшие проверку")
     p.set_defaults(func=cmd_build_catalog)
+
+    p = sub.add_parser("graph", help="схема графа агента (Mermaid)")
+    p.set_defaults(func=cmd_graph)
 
     p = sub.add_parser("serve", help="веб-интерфейс преподавателя")
     p.add_argument("--host", default="127.0.0.1")

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% from "_macros.html" import diff, diff_pill, codemirror with context %}
+{% block title %}Генерация — AI Lab Trainer{% endblock %}
+{% block content %}
+<div class="page narrow">
+  <div class="card" data-job="{{ job.id }}"
+       data-nodes='["plan", "catalog", "generate", "validate", "finalize", "review", "simulate"]'
+       data-labels='{{ node_labels | tojson }}'>
+    <div style="display:flex;align-items:center;gap:10px">
+      <h1 style="margin:0">Агент готовит работу</h1>
+      <span id="job-status"><span class="pill brand"><span class="spinner" style="width:10px;height:10px"></span> выполняется</span></span>
+      <span class="muted small" style="margin-left:auto" id="job-elapsed"></span>
+    </div>
+    <p class="muted">{{ job.title }}</p>
+    <ul class="steps" id="job-steps"></ul>
+    <div class="alert hidden" id="job-error"></div>
+    <div class="hidden" id="job-actions"><a class="btn" href="/labs/new">Попробовать ещё раз</a> <a class="btn ghost" href="/account#llm">Проверить интеграции</a></div>
+  </div>
+</div>
+{% endblock %}

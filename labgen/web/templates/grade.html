@@ -1,44 +1,48 @@
 {% extends "base.html" %}
-{% block nav_labs %}active{% endblock %}
+{% from "_macros.html" import diff, diff_pill, codemirror with context %}
 {% block title %}Результат проверки — {{ record.spec.title }}{% endblock %}
 {% block content %}
-<p><a href="/labs/{{ record.id }}#grading">← к работе</a></p>
-<h1>Результат автопроверки</h1>
-<p class="lead">{{ record.spec.title }} · уровень {{ report.level }} · студент: {{ report.student or '—' }}</p>
+{% set full = report.auto_score == report.auto_max %}
+{% set none_ = report.auto_score == 0 %}
+<div class="page narrow" style="max-width:960px">
+  <a class="btn ghost sm" href="/labs/{{ record.id }}#submissions">← К работе</a>
+  <div class="card" style="margin-top:12px">
+    <div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap">
+      <div>
+        <h1 class="{{ 'ok-text' if full else ('err-text' if none_ or report.infrastructure_error else 'warn-text') }}" style="font-size:24px">
+          {{ 'Ошибка выполнения' if report.infrastructure_error else ('Принято' if full else ('Не принято' if none_ else 'Частично принято')) }}
+        </h1>
+        <div class="muted">{{ report.student or '—' }} · {{ record.spec.title }} · {{ diff(report.level) }} · {{ report.created_at[:16].replace('T', ' ') }} UTC</div>
+      </div>
+    </div>
+    <div class="kv" style="margin-top:16px">
+      <div><strong>{{ '%g' % report.auto_score }} <span class="muted" style="font-size:13px">/ {{ report.auto_max }}</span></strong><span>баллов автопроверки ({{ '%d%%' % report.auto_percent }})</span></div>
+      <div><strong>{{ report.tests_passed }}/{{ report.tests_total }}</strong><span>тестов пройдено</span></div>
+      <div><strong>{{ report.manual_max }}</strong><span>баллов на ручную проверку</span></div>
+      <div><strong>{{ report.total_max }}</strong><span>максимум за работу</span></div>
+    </div>
+    {% if report.infrastructure_error %}<div class="case-box" style="margin-bottom:16px">{{ report.infrastructure_error }}</div>{% endif %}
 
-<div class="stats">
-  <div class="stat"><div class="score-big">{{ '%g' % report.auto_score }}<span style="font-size:20px;color:var(--muted)"> / {{ report.auto_max }}</span></div><div class="label">Баллов по автотестам ({{ '%d%%' % report.auto_percent }})</div></div>
-  <div class="stat"><div class="value">{{ report.tests_passed }}/{{ report.tests_total }}</div><div class="label">Тестов пройдено</div></div>
-  <div class="stat"><div class="value">{{ report.manual_max }}</div><div class="label">Баллов на ручную проверку</div></div>
-  <div class="stat"><div class="value">{{ report.total_max }}</div><div class="label">Максимум за работу</div></div>
-</div>
-
-{% if report.infrastructure_error %}<div class="alert err">Решение не удалось запустить: {{ report.infrastructure_error }}</div>{% endif %}
-
-<div class="card">
-  <table>
-    <thead><tr><th>№</th><th>Требование</th><th>Баллы</th><th>Тесты</th><th>Что не так</th></tr></thead>
-    <tbody>
-    {% for g in report.requirements %}
-      <tr>
-        <td><strong>{{ g.id }}</strong></td>
-        <td class="markdown" style="max-width:420px">{{ g.text | md | safe }}</td>
-        <td class="num">{% if g.auto %}{{ '%g' % g.earned }} / {{ g.points }}{% else %}— / {{ g.points }}{% endif %}</td>
-        <td>
-          {% if not g.auto %}<span class="badge warn">вручную</span>
-          {% elif g.tests_passed == g.tests_total %}<span class="badge ok">{{ g.tests_passed }}/{{ g.tests_total }}</span>
-          {% elif g.tests_passed == 0 %}<span class="badge err">{{ g.tests_passed }}/{{ g.tests_total }}</span>
-          {% else %}<span class="badge warn">{{ g.tests_passed }}/{{ g.tests_total }}</span>{% endif %}
-        </td>
-        <td class="small">{% for f in g.failures %}<div>{{ f }}</div>{% endfor %}</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-
-<div class="card">
-  <h3>Комментарии для студента</h3>
-  <ul>{% for f in report.feedback %}<li>{{ f }}</li>{% endfor %}</ul>
+    <table class="plain">
+      <thead><tr><th>№</th><th>Требование</th><th class="num">Баллы</th><th>Тесты</th></tr></thead>
+      <tbody>
+      {% for g in report.requirements %}
+        <tr>
+          <td><strong>{{ g.id }}</strong></td>
+          <td>{{ g.text | md | safe }}{% for f in g.failures %}<div class="small mono err-text" style="margin-top:4px">{{ f }}</div>{% endfor %}</td>
+          <td class="num">{% if g.auto %}{{ '%g' % g.earned }} / {{ g.points }}{% else %}— / {{ g.points }}{% endif %}</td>
+          <td>{% if not g.auto %}<span class="pill medium">вручную</span>
+              {% elif g.tests_passed == g.tests_total %}<span class="pill ok">{{ g.tests_passed }}/{{ g.tests_total }}</span>
+              {% elif g.tests_passed == 0 %}<span class="pill err">{{ g.tests_passed }}/{{ g.tests_total }}</span>
+              {% else %}<span class="pill medium">{{ g.tests_passed }}/{{ g.tests_total }}</span>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h2>Комментарии для студента</h2>
+    <ul class="text-2" style="margin:0;padding-left:18px">{% for f in report.feedback %}<li>{{ f }}</li>{% endfor %}</ul>
+  </div>
 </div>
 {% endblock %}

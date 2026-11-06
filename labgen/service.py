@@ -2,23 +2,25 @@
 
 from __future__ import annotations
 
+from .accounts import AccountStore
+from .agent.graph import ProgressCallback, generate_lab
 from .config import Settings, load_settings
 from .exporters.gitverse import export_student_repo
 from .exporters.moodle import export_moodle
 from .exporters.teacher import export_teacher_kit
 from .grader import grade_solution
-from .llm import provider_from_settings
-from .llm.base import LLMProvider
+from .jobs import JobManager
+from .llm import LabLLM, LLMError, config_from_settings
 from .models import GradeReport, LabRecord, LabSpec, Requirement
-from .pipeline.orchestrator import generate_lab
 from .pipeline.reviewer import review_spec
 from .pipeline.validator import validate_spec
+from .sandbox import run_tests
 from .storage import LabStore
 
 EXPORT_KINDS = {
     "student": "Репозиторий студента (Gitverse)",
     "teacher": "Комплект преподавателя",
-    "moodle": "Moodle: CodeRunner XML и описание задания",
+    "moodle": "Moodle: CodeRunner XML",
 }
 
 
@@ -31,18 +33,31 @@ class LabService:
         self,
         settings: Settings | None = None,
         store: LabStore | None = None,
-        provider: LLMProvider | None = None,
-        use_settings_provider: bool = True,
+        accounts: AccountStore | None = None,
+        default_llm: LabLLM | None = None,
+        use_settings_llm: bool = True,
     ) -> None:
         self.settings = settings or load_settings()
         self.store = store or LabStore(self.settings.data_dir)
-        if provider is None and use_settings_provider:
-            provider = provider_from_settings(self.settings)
-        self.provider = provider
+        self.accounts = accounts or AccountStore(self.settings.data_dir / "app.db", self.settings.resolve_secret())
+        self.jobs = JobManager()
+        if default_llm is None and use_settings_llm:
+            config = config_from_settings(self.settings)
+            default_llm = LabLLM.from_config(config) if config else None
+        self.default_llm = default_llm  # LLM из окружения: для CLI
 
-    @property
-    def llm_available(self) -> bool:
-        return self.provider is not None
+    # --- модели пользователя ---------------------------------------------------------
+
+    def user_llm(self, user_id: int | None, provider: str | None = None) -> LabLLM | None:
+        """LLM пользователя (по умолчанию или указанный провайдер); без пользователя — LLM из окружения."""
+        if user_id is None:
+            return self.default_llm
+        config = self.accounts.llm_config(user_id, provider)
+        if config is None:
+            if provider:
+                raise LLMError("Эта интеграция не настроена в аккаунте")
+            return None
+        return LabLLM.from_config(config)
 
     # --- создание -----------------------------------------------------------------
 
@@ -52,25 +67,31 @@ class LabService:
         level: int,
         *,
         mode: str = "auto",
+        llm: LabLLM | None = None,
+        owner_id: int | None = None,
         materials: str | None = None,
         topic_id: str | None = None,
         simulate: int | None = None,
+        on_step: ProgressCallback | None = None,
     ) -> LabRecord:
         result = generate_lab(
             request,
             level,
             mode=mode,  # type: ignore[arg-type]
-            provider=self.provider,
+            llm=llm,
             materials=materials,
             topic_id=topic_id,
             max_attempts=self.settings.max_generation_attempts,
             simulate=self.settings.simulate_students if simulate is None else simulate,
+            on_step=on_step,
         )
         record = LabRecord(
             id=self.store.new_id(result.spec.title, level),
             request_topic=request,
             level=level,
             mode=result.mode,
+            owner_id=owner_id,
+            llm_name=result.llm_name,
             spec=result.spec,
             validation=result.report,
             review=result.review,
@@ -78,6 +99,15 @@ class LabService:
             simulation=result.simulation,
         )
         return self.store.save(record, new_version=False)
+
+    def start_create(self, owner_id: int | None, request: str, level: int, **kwargs):
+        """Генерация в фоне; прогресс — по шагам графа LangGraph."""
+        title = f"{request} · уровень {level}"
+        return self.jobs.start(
+            owner_id,
+            title,
+            lambda on_step: self.create(request, level, owner_id=owner_id, on_step=on_step, **kwargs).id,
+        )
 
     # --- редактирование -------------------------------------------------------------
 
@@ -125,7 +155,7 @@ class LabService:
         record.generation_log.append(f"Восстановлена версия {version}.")
         return self.store.save(record)
 
-    # --- экспорт и проверка ------------------------------------------------------------
+    # --- экспорт, запуск и проверка ------------------------------------------------------
 
     def export(self, lab_id: str, kind: str) -> tuple[str, bytes]:
         record = self.store.get(lab_id)
@@ -137,8 +167,24 @@ class LabService:
             return export_moodle(record.spec)
         raise ValueError(f"Неизвестный формат экспорта: {kind}")
 
-    def grade(self, lab_id: str, code: str, student: str | None = None, llm_feedback: bool = False) -> tuple[str, GradeReport]:
+    def run_public(self, lab_id: str, code: str) -> list[dict]:
+        """«Запустить»: только публичные тесты, без сохранения результата."""
+        spec = self.store.get(lab_id).spec
+        run = run_tests(code, {"test_public.py": spec.tests_public}, per_test_timeout=5)
+        cases = []
+        for name in run.expected:
+            outcome = run.outcome(name)
+            first = next((line for line in outcome.message.splitlines() if line.strip()), "")
+            cases.append({"name": name, "passed": outcome.passed, "message": first[:400]})
+        if run.collection_error and not run.passed_names:
+            last = [line for line in run.collection_error.splitlines() if line.strip()]
+            return [{"name": "Запуск решения", "passed": False, "message": (last[-1] if last else "ошибка запуска")[:400]}]
+        return cases
+
+    def grade(
+        self, lab_id: str, code: str, student: str | None = None, llm: LabLLM | None = None
+    ) -> tuple[str, GradeReport]:
         record = self.store.get(lab_id)
-        report = grade_solution(record.spec, code, student=student, provider=self.provider if llm_feedback else None)
+        report = grade_solution(record.spec, code, student=student, llm=llm)
         grade_id = self.store.save_grade(lab_id, report)
         return grade_id, report

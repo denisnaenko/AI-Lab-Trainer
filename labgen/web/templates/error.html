@@ -1,6 +1,9 @@
 {% extends "base.html" %}
+{% block title %}Ошибка — AI Lab Trainer{% endblock %}
 {% block content %}
-<h1>Ошибка</h1>
-<div class="alert err">{{ message }}</div>
-<p><a href="/">← на главную</a></p>
+<div class="page narrow" style="text-align:center;padding-top:80px">
+  <div style="font-size:64px;font-weight:800;color:var(--brand)">{{ code or 'Ой' }}</div>
+  <p class="text-2" style="font-size:16px">{{ message }}</p>
+  <a class="btn" href="/">← К задачам</a>
+</div>
 {% endblock %}

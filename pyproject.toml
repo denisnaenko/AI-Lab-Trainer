@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-lab-trainer"
-version = "0.1.0"
+version = "0.2.0"
 description = "ИИ-агент для генерации лабораторных работ по агентной разработке с автопроверкой и экспортом в Moodle/Gitverse"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.110",
     "uvicorn>=0.27",
@@ -17,6 +17,12 @@ dependencies = [
     "pydantic>=2.5",
     "httpx>=0.27",
     "pytest>=8.0",
+    "langgraph>=1.0",
+    "langchain-core>=1.0",
+    "langchain-openai>=1.0",
+    "langchain-anthropic>=1.0",
+    "cryptography>=42",
+    "itsdangerous>=2.1",
 ]
 
 [project.scripts]
@@ -26,7 +32,7 @@ labgen = "labgen.cli:main"
 include = ["labgen*"]
 
 [tool.setuptools.package-data]
-labgen = ["runtime/*.py", "catalog/sources/*/*.py", "web/templates/*.html", "web/static/*"]
+labgen = ["runtime/*.py", "catalog/sources/*/*.py", "web/templates/*.html", "web/static/*", "web/static/vendor/codemirror/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

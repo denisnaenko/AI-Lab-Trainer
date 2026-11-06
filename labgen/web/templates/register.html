@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "_macros.html" import logo_svg with context %}
+{% block title %}Регистрация — AI Lab Trainer{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="logo">{{ logo_svg(30) }}<span>AI Lab Trainer</span></div>
+    {% if not allowed %}
+      <div class="alert info">Регистрация отключена администратором. Обратитесь к нему за доступом.</div>
+    {% else %}
+    {% if error %}<div class="alert">{{ error }}</div>{% endif %}
+    <form method="post" action="/register">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label class="field"><span>Имя</span><input type="text" name="name" value="{{ form.name or '' }}" placeholder="Как к вам обращаться" autocomplete="name"></label>
+      <label class="field"><span>Почта</span><input type="email" name="email" value="{{ form.email or '' }}" required autocomplete="email"></label>
+      <label class="field"><span>Пароль <span class="muted">— не короче 8 символов</span></span><input type="password" name="password" required minlength="8" autocomplete="new-password"></label>
+      <label class="field"><span>Повторите пароль</span><input type="password" name="password2" required minlength="8" autocomplete="new-password"></label>
+      <button class="btn brand lg block" type="submit">Создать аккаунт</button>
+    </form>
+    {% endif %}
+    <div class="switch">Уже есть аккаунт? <a href="/login">Войти</a></div>
+  </div>
+</div>
+{% endblock %}

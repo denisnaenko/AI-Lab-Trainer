@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% from "_macros.html" import diff, diff_pill, codemirror with context %}
+{% block title %}{{ spec.title }} — AI Lab Trainer{% endblock %}
+{% block body_class %}workspace-body{% endblock %}
+{% block nav_class %}wide{% endblock %}
+{% block head %}{{ codemirror() }}{% endblock %}
+{% block content %}
+{% set v = record.validation %}
+<div class="workspace">
+  <div class="ws-top">
+    <a class="btn ghost sm" href="/">← Задачи</a>
+    <span class="title">{{ spec.title }}</span>
+    {{ diff_pill(spec.level) }}
+    {% if record.status == 'approved' %}<span class="pill ok">✓ Утверждена</span>
+    {% elif v and not v.passed %}<span class="pill err">Ошибки проверки</span>
+    {% else %}<span class="pill">Черновик</span>{% endif %}
+    <span class="muted small">v{{ record.version }} · {{ 'LLM: ' ~ record.llm_name if record.llm_name else 'каталог' }}</span>
+    <span class="spacer"></span>
+    <a class="btn sm" href="/labs/{{ record.id }}/edit">Редактировать</a>
+    <form class="inline" method="post" action="/labs/{{ record.id }}/validate" data-busy>
+      <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn sm" type="submit" data-busy-text="Проверка…">Перепроверить</button>
+    </form>
+    {% if record.status == 'approved' %}
+      <form class="inline" method="post" action="/labs/{{ record.id }}/unapprove"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn sm" type="submit">В черновики</button></form>
+    {% else %}
+      <form class="inline" method="post" action="/labs/{{ record.id }}/approve"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn green sm" type="submit">Утвердить</button></form>
+    {% endif %}
+    <div class="dropdown" data-dropdown>
+      <button class="btn sm" type="button" data-dropdown-toggle>Экспорт ▾</button>
+      <div class="dropdown-menu">
+        {% for kind, name in export_kinds.items() %}<a href="/labs/{{ record.id }}/export/{{ kind }}">⬇ {{ name }}</a>{% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="ws-split">
+    <!-- левая панель: условие и отчёты -->
+    <section class="panel">
+      <div class="panel-head" data-tabs="left" data-hash>
+        <button class="tab active" data-tab="description">📄 Описание</button>
+        <button class="tab" data-tab="rubric">Критерии</button>
+        <button class="tab" data-tab="check">Проверка задания {% if v %}<span class="dot {{ 'on' if v.passed else 'err' }}"></span>{% endif %}</button>
+        <button class="tab" data-tab="review">Рецензия{% if record.review %} <span class="muted">{{ record.review|length }}</span>{% endif %}</button>
+        <button class="tab" data-tab="submissions">Решения{% if grades %} <span class="muted">{{ grades|length }}</span>{% endif %}</button>
+        <button class="tab" data-tab="history">История</button>
+      </div>
+      <div class="panel-body">
+        <div class="pane active statement" data-pane-of="left" data-pane="description">
+          {{ spec.statement_md | md | safe }}
+        </div>
+
+        <div class="pane" data-pane-of="left" data-pane="rubric">
+          <h2>Требования и баллы</h2>
+          <table class="plain">
+            <thead><tr><th>№</th><th>Требование</th><th class="num">Баллы</th><th>Проверка</th></tr></thead>
+            <tbody>
+            {% for r in spec.requirements %}
+              <tr><td><strong>{{ r.id }}</strong></td><td>{{ r.text | md | safe }}<div class="small muted mono">{{ tests_map.get(r.id, []) | join(', ') }}</div></td>
+                <td class="num">{{ r.points }}</td>
+                <td>{% if r.auto %}<span class="pill ok">авто</span>{% else %}<span class="pill medium">вручную</span>{% endif %}</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pane" data-pane-of="left" data-pane="check">
+          {% if v %}
+          <div class="kv">
+            <div><strong class="{{ 'ok-text' if v.passed else 'err-text' }}">{{ 'Пройдена' if v.passed else 'Ошибки' }}</strong><span>итог проверки</span></div>
+            <div><strong>{{ '%d%%' % (spec.auto_coverage() * 100) }}</strong><span>баллов под автопроверкой</span></div>
+            <div><strong>{% if v.mutation_score is not none %}{{ '%d%%' % (v.mutation_score * 100) }}{% else %}—{% endif %}</strong><span>мутантов поймано</span></div>
+            <div><strong>{{ '%.1f' % v.duration_s }} с</strong><span>время проверки</span></div>
+          </div>
+          <div class="checks">
+            {% for c in v.checks %}
+              <div class="row"><span class="icon {{ 'ok-text' if c.ok else ('warn-text' if c.severity == 'warning' else 'err-text') }}">{{ '✓' if c.ok else ('!' if c.severity == 'warning' else '✗') }}</span>
+                <div><div>{{ c.name }}</div><div class="small muted">{{ c.details }}</div></div></div>
+            {% endfor %}
+          </div>
+          {% if v.mutants %}
+          <h3>Мутанты — типичные ошибки студентов</h3>
+          <table class="plain">
+            <thead><tr><th>№</th><th>Ошибка</th><th>Результат</th></tr></thead>
+            <tbody>
+            {% for m in v.mutants %}
+              <tr><td>{{ m.id }}</td><td>{{ m.description }}<div class="small muted mono">{{ m.killed_by | join(', ') }}</div></td>
+                <td>{% if not m.applied %}<span class="pill medium">не применён</span>{% elif m.killed %}<span class="pill ok">пойман</span>{% else %}<span class="pill err">пропущен</span>{% endif %}</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          {% endif %}
+          {% if record.simulation %}
+          <h3>Симулированные студенты</h3>
+          <p class="text-2">Решили {{ record.simulation.solved }} из {{ record.simulation.n }}, в среднем пройдено {{ '%d%%' % (record.simulation.mean_pass_rate * 100) }} тестов.</p>
+          {% endif %}
+          {% else %}<p class="muted">Проверка ещё не выполнялась.</p>{% endif %}
+        </div>
+
+        <div class="pane" data-pane-of="left" data-pane="review">
+          <p class="small muted" style="margin-top:0">Замечания рецензента — повод перечитать задание. Баллов рецензент не ставит.</p>
+          {% for r in record.review %}
+            <div class="checks"><div class="row">
+              <span class="pill {{ 'err' if r.severity == 'major' else ('medium' if r.severity == 'minor' else '') }}">{{ {'major': 'важно', 'minor': 'замечание', 'info': 'инфо'}[r.severity] }}</span>
+              <div><strong>{{ r.section }}</strong><div class="text-2">{{ r.comment }}</div></div>
+            </div></div>
+          {% else %}<p class="muted">Замечаний нет.</p>{% endfor %}
+        </div>
+
+        <div class="pane" data-pane-of="left" data-pane="submissions">
+          <h2>Проверить файл студента</h2>
+          <form method="post" action="/labs/{{ record.id }}/grade" enctype="multipart/form-data" data-busy>
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <div class="form-grid">
+              <label class="field"><span>Студент</span><input type="text" name="student" placeholder="Фамилия И. О."></label>
+              <label class="field"><span>Файл solution.py</span><input type="file" name="file" accept=".py" class="input" style="padding-top:6px"></label>
+            </div>
+            {% if default_llm %}<label class="check-row" style="margin-bottom:12px"><input type="checkbox" name="llm_feedback"> Пояснения ошибок от LLM (баллы ставят только тесты)</label>{% endif %}
+            <button class="btn green" type="submit" data-busy-text="Проверка…">Проверить</button>
+          </form>
+          <h3>История проверок</h3>
+          {% if grades %}
+          <table class="plain">
+            <thead><tr><th>Студент</th><th class="num">Баллы</th><th class="num">Тесты</th><th>Когда</th></tr></thead>
+            <tbody>
+            {% for gid, g in grades %}
+              <tr><td><a href="/labs/{{ record.id }}/grades/{{ gid }}">{{ g.student or '—' }}</a></td>
+                <td class="num {{ 'ok-text' if g.auto_score == g.auto_max else ('err-text' if g.auto_score == 0 else 'warn-text') }}">{{ '%g' % g.auto_score }} / {{ g.auto_max }}</td>
+                <td class="num">{{ g.tests_passed }}/{{ g.tests_total }}</td>
+                <td class="small muted">{{ g.created_at[:16].replace('T', ' ') }}</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          {% else %}<p class="muted">Решения ещё не проверялись.</p>{% endif %}
+        </div>
+
+        <div class="pane" data-pane-of="left" data-pane="history">
+          <h2>Журнал агента и изменений</h2>
+          <ul class="text-2" style="padding-left:18px">{% for line in record.generation_log %}<li>{{ line }}</li>{% endfor %}</ul>
+          <h3>Версии</h3>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            {% for n in versions %}
+              {% if n == record.version %}<span class="pill brand">v{{ n }} — текущая</span>
+              {% else %}<form class="inline" method="post" action="/labs/{{ record.id }}/restore/{{ n }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn sm" type="submit">Восстановить v{{ n }}</button></form>{% endif %}
+            {% endfor %}
+          </div>
+          <p class="small muted">Запрос: «{{ record.request_topic }}». Создано {{ record.created_at[:16].replace('T', ' ') }} UTC.</p>
+          {% if record.owner_id == user.id %}
+          <form method="post" action="/labs/{{ record.id }}/delete" data-confirm="Удалить работу безвозвратно?">
+            <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn sm danger" type="submit">Удалить работу</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+
+    <!-- правая панель: редактор и консоль -->
+    <div class="right-col">
+      <section class="panel editor-panel">
+        <div class="panel-head">
+          <button class="tab active" data-file="solution">solution.py</button>
+          <span class="sep"></span>
+          <button class="tab" data-file="reference">Эталон</button>
+          <button class="tab" data-file="public">test_public.py</button>
+          <button class="tab" data-file="hidden">test_hidden.py</button>
+          <div class="right">
+            <span class="pill hidden" id="readonly-badge">только чтение</span>
+            <span class="muted small">Python 3</span>
+            <button class="icon-btn" type="button" id="reset-code" title="Вернуть шаблон">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="panel-body"><div class="editor-host"><textarea id="editor-area" class="code" spellcheck="false"></textarea></div></div>
+      </section>
+
+      <section class="panel console-panel">
+        <div class="panel-head" data-tabs="console">
+          <button class="tab active" data-tab="tests">✓ Тестовые случаи</button>
+          <button class="tab" data-tab="result">›_ Результат</button>
+          <div class="right">
+            <button class="btn sm" type="button" id="run-btn">▶ Запустить</button>
+            <button class="btn green sm" type="button" id="submit-btn">Отправить</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="pane active" data-pane-of="console" data-pane="tests">
+            <div class="muted small" style="margin-bottom:8px">«Запустить» — публичные тесты (их видят студенты). «Отправить» — полная автопроверка со скрытыми тестами и баллами по требованиям.</div>
+            <div class="case-tabs">
+              {% for name in test_names(spec.tests_public) %}<span class="case-tab"><span class="dot"></span>{{ name[5:] }}</span>{% endfor %}
+            </div>
+          </div>
+          <div class="pane" data-pane-of="console" data-pane="result">
+            <div id="console-result" class="console-result muted">Нажмите «Запустить» или «Отправить».</div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+<script type="application/json" id="lab-data">{{ {"id": record.id, "version": record.version, "starter": spec.starter_code, "reference": spec.reference_solution, "tests_public": spec.tests_public, "tests_hidden": spec.tests_hidden} | tojson }}</script>
+{% endblock %}

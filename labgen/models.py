@@ -170,6 +170,8 @@ class LabRecord(BaseModel):
     request_topic: str
     level: int
     mode: str
+    owner_id: int | None = None
+    llm_name: str | None = None
     status: Literal["draft", "approved"] = "draft"
     version: int = 1
     spec: LabSpec

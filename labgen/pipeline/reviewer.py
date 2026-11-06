@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from ..levels import get_level
-from ..llm.base import LLMError, LLMProvider
+from ..llm.factory import LabLLM, LLMError
 from ..models import LabSpec, ReviewRemark, test_names, requirement_of
 from . import prompts
 from .jsonutil import extract_json_object
@@ -61,8 +61,8 @@ def heuristic_review(spec: LabSpec) -> list[ReviewRemark]:
     return remarks
 
 
-def llm_review(provider: LLMProvider, spec: LabSpec) -> list[ReviewRemark]:
-    raw = provider.complete(prompts.review_messages(spec, get_level(spec.level)), json_mode=True)
+def llm_review(llm: LabLLM, spec: LabSpec) -> list[ReviewRemark]:
+    raw = llm.complete(prompts.review_messages(spec, get_level(spec.level)), json=True)
     data = extract_json_object(raw)
     remarks = []
     for item in data.get("remarks", [])[:8]:
@@ -73,11 +73,11 @@ def llm_review(provider: LLMProvider, spec: LabSpec) -> list[ReviewRemark]:
     return remarks
 
 
-def review_spec(spec: LabSpec, provider: LLMProvider | None = None, log: list[str] | None = None) -> list[ReviewRemark]:
+def review_spec(spec: LabSpec, llm: LabLLM | None = None, log: list[str] | None = None) -> list[ReviewRemark]:
     remarks = heuristic_review(spec)
-    if provider is not None:
+    if llm is not None:
         try:
-            llm_remarks = llm_review(provider, spec)
+            llm_remarks = llm_review(llm, spec)
             remarks = llm_remarks + remarks
             if log is not None:
                 log.append(f"Рецензент LLM: {len(llm_remarks)} замечаний.")

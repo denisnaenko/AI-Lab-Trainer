@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block nav_labs %}active{% endblock %}
+{% block title %}Редактирование: {{ spec.title }}{% endblock %}
+{% block content %}
+<p><a href="/labs/{{ record.id }}">← к работе</a></p>
+<h1>Редактирование перед публикацией</h1>
+<p class="lead">После сохранения создаётся новая версия, работа возвращается в черновики и заново проходит автоматическую проверку.</p>
+{% if error %}<div class="alert err">{{ error }}</div>{% endif %}
+
+<form method="post" action="/labs/{{ record.id }}/edit" data-busy>
+  <div class="card">
+    <label for="title">Название</label>
+    <input type="text" id="title" name="title" value="{{ spec.title }}">
+    <label for="summary">Краткое описание</label>
+    <input type="text" id="summary" name="summary" value="{{ spec.summary }}">
+    <label for="estimated_minutes">Ориентировочное время, мин</label>
+    <input type="number" id="estimated_minutes" name="estimated_minutes" value="{{ spec.estimated_minutes or '' }}" min="5" max="600" style="max-width:160px">
+  </div>
+
+  <div class="card">
+    <label for="statement_md">Условие для студента (Markdown)</label>
+    <textarea class="code" id="statement_md" name="statement_md" style="min-height:420px; white-space:pre-wrap">{{ spec.statement_md }}</textarea>
+  </div>
+
+  <div class="card">
+    <h3>Требования и баллы</h3>
+    <p class="small">Тесты связываются с требованием по имени: <code>test_r3_...</code> проверяет R3. Сумма баллов должна быть 100. Пустая строка внизу — для нового требования.</p>
+    <table class="req-table">
+      <thead><tr><th style="width:80px">№</th><th>Текст</th><th style="width:90px">Баллы</th><th style="width:70px">Авто</th></tr></thead>
+      <tbody>
+      {% for r in spec.requirements %}
+        <tr>
+          <td><input type="text" name="req_id_{{ loop.index0 }}" value="{{ r.id }}"></td>
+          <td><textarea name="req_text_{{ loop.index0 }}" style="min-height:60px">{{ r.text }}</textarea></td>
+          <td><input type="number" name="req_points_{{ loop.index0 }}" value="{{ r.points }}" min="0"></td>
+          <td style="text-align:center"><input type="checkbox" name="req_auto_{{ loop.index0 }}" {% if r.auto %}checked{% endif %}></td>
+        </tr>
+      {% endfor %}
+        <tr>
+          <td><input type="text" name="req_id_{{ spec.requirements|length }}" placeholder="R{{ spec.requirements|length + 1 }}"></td>
+          <td><textarea name="req_text_{{ spec.requirements|length }}" style="min-height:60px" placeholder="Новое требование"></textarea></td>
+          <td><input type="number" name="req_points_{{ spec.requirements|length }}" value="0" min="0"></td>
+          <td style="text-align:center"><input type="checkbox" name="req_auto_{{ spec.requirements|length }}" checked></td>
+        </tr>
+      </tbody>
+    </table>
+    <input type="hidden" name="req_count" value="{{ spec.requirements|length }}">
+  </div>
+
+  <div class="card">
+    <label for="starter_code">Шаблон решения — solution.py</label>
+    <textarea class="code" id="starter_code" name="starter_code">{{ spec.starter_code }}</textarea>
+    <label for="reference_solution">Эталонное решение</label>
+    <textarea class="code" id="reference_solution" name="reference_solution">{{ spec.reference_solution }}</textarea>
+  </div>
+
+  <div class="card">
+    <label for="tests_public">Публичные тесты</label>
+    <textarea class="code" id="tests_public" name="tests_public">{{ spec.tests_public }}</textarea>
+    <label for="tests_hidden">Скрытые тесты</label>
+    <textarea class="code" id="tests_hidden" name="tests_hidden">{{ spec.tests_hidden }}</textarea>
+  </div>
+
+  <div class="card">
+    <label for="mutants_json">Мутанты — типичные ошибки для проверки тестов <span class="hint">(JSON: id, description, find, replace)</span></label>
+    <textarea class="code" id="mutants_json" name="mutants_json" style="min-height:220px">{{ mutants_json }}</textarea>
+    <label for="note">Комментарий к версии</label>
+    <input type="text" id="note" name="note" placeholder="Что изменено">
+    <div class="actions" style="margin-top:16px">
+      <button class="btn primary" type="submit" data-busy-text="Сохранение и проверка…"><span class="spinner"></span><span>Сохранить и проверить</span></button>
+      <a class="btn" href="/labs/{{ record.id }}">Отмена</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

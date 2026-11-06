@@ -1,39 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "ai-lab-trainer"
 version = "0.1.0"
-description = "AI agent that generates lab assignments on agentic AI development and publishes them to Moodle or Gitverse"
+description = "ИИ-агент для генерации лабораторных работ по агентной разработке с автопроверкой и экспортом в Moodle/Gitverse"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
-    "langgraph>=1.0",
-    "langchain>=1.0",
-    "langchain-core>=1.0",
-    "langchain-anthropic>=1.0",
-    "langchain-openai>=1.0",
-    "pydantic>=2.7",
-    "pyyaml>=6.0",
-    "typer>=0.12",
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+    "markdown>=3.5",
+    "pydantic>=2.5",
     "httpx>=0.27",
+    "pytest>=8.0",
 ]
 
-[project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.5"]
-
 [project.scripts]
-lab-trainer = "lab_trainer.cli:app"
+labgen = "labgen.cli:main"
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+[tool.setuptools.packages.find]
+include = ["labgen*"]
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/lab_trainer"]
+[tool.setuptools.package-data]
+labgen = ["runtime/*.py", "catalog/sources/*/*.py", "web/templates/*.html", "web/static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
-
-[tool.ruff]
-line-length = 100
-target-version = "py311"
-extend-exclude = ["labs"]  # lab materials are student-facing, not linted as project code
+markers = ["slow: долгие тесты (прогон всего каталога)"]

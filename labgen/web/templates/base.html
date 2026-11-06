@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}AI Lab Trainer{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="inner">
+    <a class="brand" href="/">AI&nbsp;Lab&nbsp;<span>Trainer</span></a>
+    <nav class="main">
+      <a href="/" class="{% block nav_labs %}{% endblock %}">Лабораторные</a>
+      <a href="/catalog" class="{% block nav_catalog %}{% endblock %}">Каталог тем</a>
+      <a href="/docs">API</a>
+    </nav>
+    <div class="llm-pill" title="{{ llm_name or 'Задайте LABGEN_LLM_BASE_URL и LABGEN_LLM_MODEL' }}">
+      <span class="dot {{ 'on' if llm_available else '' }}"></span>
+      {{ 'LLM подключена' if llm_available else 'Офлайн-режим (каталог)' }}
+    </div>
+  </div>
+</header>
+<main>
+{% block content %}{% endblock %}
+</main>
+<script>
+  // кнопка с индикатором на время долгих операций (генерация, проверка)
+  document.querySelectorAll("form[data-busy]").forEach(function (form) {
+    form.addEventListener("submit", function () {
+      var btn = form.querySelector("button[type=submit]");
+      if (btn) { btn.disabled = true; btn.classList.add("busy"); if (btn.dataset.busyText) btn.lastChild.textContent = " " + btn.dataset.busyText; }
+    });
+  });
+  // Tab в редакторах кода вставляет 4 пробела
+  document.querySelectorAll("textarea.code").forEach(function (area) {
+    area.addEventListener("keydown", function (e) {
+      if (e.key === "Tab") {
+        e.preventDefault();
+        var s = area.selectionStart, end = area.selectionEnd;
+        area.value = area.value.substring(0, s) + "    " + area.value.substring(end);
+        area.selectionStart = area.selectionEnd = s + 4;
+      }
+    });
+  });
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

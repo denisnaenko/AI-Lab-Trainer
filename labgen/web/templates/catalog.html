@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block nav_catalog %}active{% endblock %}
+{% block title %}Каталог тем — AI Lab Trainer{% endblock %}
+{% block content %}
+<h1>Каталог тем</h1>
+<p class="lead">Проверенные лабораторные работы: 5 тем по агентной разработке × 3 уровня сложности. В LLM-режиме они служат образцами для генерации новых работ.</p>
+
+<div class="card" style="margin-bottom:20px">
+  <h3>Уровни сложности</h3>
+  <table>
+    <thead><tr><th>Уровень</th><th>Суть</th><th>Признаки</th></tr></thead>
+    <tbody>
+    {% for n, lvl in levels.items() %}
+      <tr><td><strong>{{ n }} · {{ lvl.name }}</strong></td><td>{{ lvl.summary }}</td><td class="small">{{ lvl.traits | join('; ') }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="topics-grid">
+{% for t in topics %}
+  <div class="card topic-card">
+    <h3>{{ t.title }}</h3>
+    <p>{{ t.summary }}</p>
+    <div class="actions">
+      {% for n, lvl in levels.items() %}
+      <form method="post" action="/labs" class="inline" data-busy>
+        <input type="hidden" name="topic" value="{{ t.title }}">
+        <input type="hidden" name="topic_id" value="{{ t.id }}">
+        <input type="hidden" name="mode" value="catalog">
+        <input type="hidden" name="level" value="{{ n }}">
+        <button class="btn small" type="submit" data-busy-text="Проверка…"><span class="spinner"></span><span>Уровень {{ n }}</span></button>
+      </form>
+      {% endfor %}
+    </div>
+  </div>
+{% endfor %}
+</div>
+{% endblock %}

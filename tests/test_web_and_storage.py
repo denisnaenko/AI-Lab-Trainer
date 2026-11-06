@@ -136,3 +136,12 @@ def test_llm_source_without_integration(browser):
 @pytest.mark.parametrize("path", ["/catalog", "/login", "/register"])
 def test_public_pages(browser, path):
     assert browser.get(path).status_code == 200
+
+
+def test_static_assets_are_versioned(browser):
+    page = browser.get("/")
+    assert page.headers["cache-control"] == "no-store"
+    version = browser.get("/api/health").json()["assets"]
+    assert f"/static/style.css?v={version}" in page.text and f"/static/app.js?v={version}" in page.text
+    assert browser.get(f"/static/style.css?v={version}").headers["cache-control"].endswith("immutable")
+    assert browser.get("/static/style.css").headers["cache-control"] == "no-cache"

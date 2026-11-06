@@ -16,6 +16,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, ValidationError
 from starlette.middleware.sessions import SessionMiddleware
 
+from .. import __version__
 from ..accounts import AccountError, User
 from ..agent.graph import NODE_LABELS
 from ..catalog import TOPICS, list_topics
@@ -27,6 +28,16 @@ from ..storage import LabNotFound
 
 HERE = Path(__file__).parent
 DIFFICULTY = {1: ("Базовый", "easy"), 2: ("Средний", "medium"), 3: ("Продвинутый", "hard")}
+
+
+def asset_version() -> str:
+    """Отпечаток статических файлов: меняется при любом изменении стилей и скриптов,
+    поэтому браузер не показывает старый дизайн из кеша."""
+    digest = hashlib.sha256()
+    for path in sorted((HERE / "static").rglob("*")):
+        if path.is_file():
+            digest.update(path.read_bytes())
+    return digest.hexdigest()[:10]
 
 
 def render_md(text: str) -> str:
@@ -63,9 +74,21 @@ def create_app(service: LabService | None = None) -> FastAPI:
         max_age=14 * 24 * 3600,
     )
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
+
+    @app.middleware("http")
+    async def no_stale_pages(request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/static/"):
+            # адреса с ?v=<отпечаток> неизменяемы; без него — всегда перепроверять
+            immutable = "v" in request.query_params
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable" if immutable else "no-cache"
+        elif response.headers.get("content-type", "").startswith("text/html"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
     templates = Jinja2Templates(directory=HERE / "templates")
     templates.env.filters["md"] = render_md
     templates.env.globals.update(
+        asset_v=asset_version(), app_version=__version__,
         levels=LEVELS, difficulty=DIFFICULTY, export_kinds=EXPORT_KINDS, providers=PROVIDERS, topics_by_id=TOPICS,
         node_labels=NODE_LABELS, test_names=test_names,
     )
@@ -530,6 +553,6 @@ def create_app(service: LabService | None = None) -> FastAPI:
 
     @app.get("/api/health")
     def health():
-        return {"status": "ok"}
+        return {"status": "ok", "version": __version__, "assets": asset_version()}
 
     return app

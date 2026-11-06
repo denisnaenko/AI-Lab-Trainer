@@ -10,7 +10,7 @@
     try { var t = localStorage.getItem("labgen:theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23ffa116'/%3E%3Cpath d='M12.5 10 7.5 16l5 6M19.5 10l5 6-5 6' fill='none' stroke='%231a1a1a' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v={{ asset_v }}">
   {% block head %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
@@ -54,6 +54,7 @@
 <div class="flashes">{% for f in flashes %}<div class="flash {{ f.kind }}">{{ f.text }}</div>{% endfor %}</div>
 {% endif %}
 {% block content %}{% endblock %}
-<script src="/static/app.js"></script>
+<footer class="small muted" style="text-align:center;padding:16px 0 24px">AI Lab Trainer v{{ app_version }} · сборка {{ asset_v }}</footer>
+<script src="/static/app.js?v={{ asset_v }}"></script>
 </body>
 </html>

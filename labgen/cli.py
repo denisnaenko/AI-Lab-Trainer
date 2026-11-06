@@ -7,6 +7,7 @@ import json
 import sys
 from pathlib import Path
 
+from . import __version__
 from .catalog import list_topics
 from .config import load_settings
 from .grader import grade_directory, grade_solution, report_to_markdown, reports_to_csv
@@ -196,6 +197,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="labgen", description="ИИ-агент для создания лабораторных работ по агентной разработке")
+    parser.add_argument("--version", action="version", version=f"labgen {__version__}")
     parser.add_argument("--data", help="каталог данных (по умолчанию LABGEN_DATA_DIR или ./data)")
     sub = parser.add_subparsers(dest="command", required=True)
 

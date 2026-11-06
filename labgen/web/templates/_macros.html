@@ -7,10 +7,10 @@
 {%- macro diff(level) -%}<span class="diff {{ difficulty[level][1] }}">{{ difficulty[level][0] }}</span>{%- endmacro -%}
 {%- macro diff_pill(level) -%}<span class="pill {{ difficulty[level][1] }}">{{ difficulty[level][0] }}</span>{%- endmacro -%}
 {%- macro codemirror() -%}
-<link rel="stylesheet" href="/static/vendor/codemirror/codemirror.css">
-<script src="/static/vendor/codemirror/codemirror.js"></script>
-<script src="/static/vendor/codemirror/python.js"></script>
-<script src="/static/vendor/codemirror/markdown.js"></script>
-<script src="/static/vendor/codemirror/matchbrackets.js"></script>
-<script src="/static/vendor/codemirror/active-line.js"></script>
+<link rel="stylesheet" href="/static/vendor/codemirror/codemirror.css?v={{ asset_v }}">
+<script src="/static/vendor/codemirror/codemirror.js?v={{ asset_v }}"></script>
+<script src="/static/vendor/codemirror/python.js?v={{ asset_v }}"></script>
+<script src="/static/vendor/codemirror/markdown.js?v={{ asset_v }}"></script>
+<script src="/static/vendor/codemirror/matchbrackets.js?v={{ asset_v }}"></script>
+<script src="/static/vendor/codemirror/active-line.js?v={{ asset_v }}"></script>
 {%- endmacro -%}
